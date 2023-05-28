@@ -1,0 +1,176 @@
+---
+title: An R Markdown document converted from "CURRENT.ipynb"
+output: html_document
+---
+
+```{python}
+library(tidymodels)
+library(caret)
+library(ggplot2)
+suppressPackageStartupMessages(library(ggthemes))
+
+
+df <- read.csv('cleaned.csv', stringsAsFactors = T)
+df$HeartDisease <- as.factor(df$HeartDisease)
+
+dfAugmented <- read.csv('agumented.csv', stringsAsFactors = T)
+dfAugmented$HeartDisease <- as.factor(dfAugmented$HeartDisease)
+```
+
+```{python}
+set.seed(420)
+split_full <- initial_split(df, prop = 0.80,strata =HeartDisease)
+train_full <- training(split_full)
+test_full  <-  testing(split_full)
+
+set.seed(420)
+split_augmented <- initial_split(dfAugmented, prop = 0.80,strata =HeartDisease)
+train_aug <- training(split_augmented)
+test_aug  <-  testing(split_augmented)
+```
+
+```{python}
+names(train_aug)
+```
+
+```{python}
+modelAug <- glm(HeartDisease ~.-BMI-PhysicalHealth-MentalHealth-SleepTime-nBadHabits-nCommorbs-AlcoholDrinking, data = train_aug, family = binomial)
+summary(modelAug)
+```
+
+```{python}
+model <- glm( HeartDisease ~.-SleepTime-BMI-PhysicalHealth-MentalHealth-AlcoholDrinking, data = train_full, family = binomial)
+summary(model)
+```
+
+```{python}
+probabilities <- predict (model,test_full,type = "response")
+```
+
+```{python}
+# Why maximize specificity https://statinfer.com/203-4-2-calculating-sensitivity-and-specificity-in-r/
+threshold <- c()
+specs <- c()
+
+for(i in 1:9){
+    predicted_values<-ifelse(probabilities>i/10,TRUE,FALSE)
+    actual_values<-test_full$HeartDisease
+    conf_matrix<-table(predicted_values,actual_values)
+    conf_matrix
+
+    spec <- caret::specificity(conf_matrix)
+    threshold <- append(threshold,i/10)
+    specs <- append(specs,spec)
+}
+
+metric <- data.frame(threshold,specs)
+ggplot(data=metric,aes(x=threshold,y=specs)) +
+  geom_line() + 
+  geom_point() +
+  labs(x = 'Treshold',y="Specificty")+
+  theme_few()
+```
+
+```{python}
+library(pROC)
+
+final_preds <- ifelse(probabilities>0.9,TRUE,FALSE)
+
+auc(as.numeric(test_full$HeartDisease), as.numeric(final_preds))
+```
+
+```{python}
+folds <- createFolds(factor(dfAugmented$HeartDisease), k = 10, list = FALSE)
+```
+
+```{python}
+dfAugmented$fold <- folds
+```
+
+```{python}
+# Initialize vectors to keep track of the best treshold for each of 10 CV run
+thresholds <- c()
+aucs <- c()
+
+for(i in 1:10){
+    print(paste0("Fold:",i))
+    # Fold ith will be test fold, all others will be train folds
+    test_fold <- dfAugmented %>%
+    filter(fold==i) %>%
+    select(-c(fold))
+    train_folds <- dfAugmented %>%
+    filter(fold!=i) %>%
+    select(-c(fold))
+
+    # Train on current train_folds and predict current test_fold probabilities
+    currentModel <- glm(HeartDisease ~.-BMI-PhysicalHealth-MentalHealth-SleepTime-nBadHabits-nCommorbs-AlcoholDrinking, data = train_aug, family = binomial)
+    currentProbs <- predict (model,test_fold,type = "response")
+
+    # Set to zero temp vars
+    bestAUC <- 0
+    bestThresh <- 0
+    currentActual<-test_fold$HeartDisease
+
+    for(z in 1:20){
+        # Threshold with zth threshold the current probabilities
+        zPredicted<-ifelse(currentProbs>z/100,TRUE,FALSE)
+        # Calculate AUC for zth threshold
+        zAUC <- auc(as.numeric(currentActual), as.numeric(zPredicted))
+        # Update if zth AUC is the best one then we save his treshold
+        
+        print(paste0("Current Z:",z/100))
+        print(paste0("zAUC",zAUC))
+        if(zAUC > bestAUC){
+            bestAUC <- zAUC
+            bestThresh <- z/100
+        }
+    }
+    # Save the best threshold found for current CV run
+    print(paste0("Best AUC:",bestAUC))
+    print(paste0("Z:",bestThresh))
+    aucs <- append(aucs,bestAUC)
+    thresholds<-  append(thresholds,bestThresh)
+}
+```
+
+```{python}
+mean(thresholds)
+mean(aucs)
+```
+
+```{python}
+cbind(as.data.frame(thresholds), as.data.frame(aucs))
+```
+
+```{python}
+modelAug <- glm(HeartDisease ~.-BMI-PhysicalHealth-MentalHealth-SleepTime-nBadHabits-nCommorbs-AlcoholDrinking, data = train_aug, family = binomial)
+```
+
+```{python}
+probabilities <- predict (modelAug,test_aug,type = "response")
+```
+
+```{python}
+final_preds <- ifelse(probabilities>0.081,TRUE,FALSE)
+
+auc(as.numeric(test_aug$HeartDisease), as.numeric(final_preds))
+```
+
+```{python}
+conf_matrix<-table(as.numeric(final_preds),as.numeric(test_aug$HeartDisease))
+```
+
+```{python}
+conf_matrix
+```
+
+```{python}
+prec <- conf_matrix[2,2] / (conf_matrix[2,2]+conf_matrix[1,2])
+recall <- conf_matrix[2,2] / (conf_matrix[2,2]+conf_matrix[2,1])
+f1 <- (2 * prec * recall) / (prec+recall)
+metrics <- c("Precision",round(prec,3),
+             "Recall",round(recall,3),
+             "F1",round(f1,3))
+matrix(metrics, ncol = 2, byrow = TRUE)
+```
+
