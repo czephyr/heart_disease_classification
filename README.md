@@ -5,7 +5,7 @@ The objective of the analysis was prediction of incidence of Heart Disease in re
 
 A comprehensive report on the results of the analysis can be found in [report.pdf](report.pdf).
 
-## Presentation preview
+### Presentation preview
 Following are some slides taken from the powerpoint presentation used to present the study keypoints.
 
 ![slide1](Slide1.jpg)
