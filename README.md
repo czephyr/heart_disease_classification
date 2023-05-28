@@ -9,6 +9,9 @@ A comprehensive report on the results of the analysis can be found in [report.pd
 Following are some slides taken from the powerpoint presentation used to present the study keypoints.
 
 ![slide1](Slide1.jpg)
+
 ![slide4](Slide4.jpg)
+
 ![slide8](Slide8.jpg)
+
 ![slide9](Slide9.jpg)
